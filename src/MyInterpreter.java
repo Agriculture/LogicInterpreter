@@ -40,13 +40,7 @@ public class MyInterpreter  implements IInterpreter
         //****************************************
         //Student begin
         this.expression = expression;
-        System.out.println(expression);
-        eliminateImplications()
-        switch(expression.getTyp()){
-            case CONSTANT:
-                ConstExpression val=(ConstExpression) expression;
-                break;
-        }
+        eliminateImplications();
 
         return new CnfExpression(new ArrayList<Clause>());
 
@@ -136,7 +130,6 @@ public class MyInterpreter  implements IInterpreter
                                 result.add(((XorExpression) exp).getExpression2());
                                 break;
         }
-
         return result;
     }
 
@@ -145,9 +138,35 @@ public class MyInterpreter  implements IInterpreter
         queue.add(expression);
         while(!queue.isEmpty()){
             Expression exp = queue.remove(0);
+
+            // here is the work
+            if(exp.getTyp().equals(Expression.Typ.IMPLICATION)){
+                System.out.println("implication found "+exp);
+                System.out.println("parent is "+findParent(exp));
+            }
+
             queue.addAll(traverse(exp));
         }
 
+    }
+
+    private Expression findParent(Expression child){
+        List<Expression> queue = new LinkedList<Expression>();
+        queue.add(expression);
+        while(!queue.isEmpty()){
+            Expression parent = queue.remove(0);
+            List<Expression> children = traverse(parent);
+            for(Expression possibleChild : children){
+                if(child.equals(possibleChild)){
+                    // found parent
+                    return parent;
+                }
+            }
+            queue.addAll(children);
+        }
+
+
+        return null;
     }
 
 }
