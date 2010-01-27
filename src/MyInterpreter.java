@@ -5,6 +5,7 @@ import java.util.*;
 
 public class MyInterpreter  implements IInterpreter
 {
+    private Expression expression;
     //Bereitstellen der sowieso nötigen Umwandlung in konjunktive
     //Normalform
     public CnfExpression toCnf(Expression expression)
@@ -38,6 +39,14 @@ public class MyInterpreter  implements IInterpreter
 
         //****************************************
         //Student begin
+        this.expression = expression;
+        System.out.println(expression);
+        eliminateImplications()
+        switch(expression.getTyp()){
+            case CONSTANT:
+                ConstExpression val=(ConstExpression) expression;
+                break;
+        }
 
         return new CnfExpression(new ArrayList<Clause>());
 
@@ -101,4 +110,44 @@ public class MyInterpreter  implements IInterpreter
         //Student end
         //****************************************
     }
+
+    List<Expression> traverse(Expression exp){
+        List<Expression> result = new LinkedList<Expression>();
+        switch(exp.getTyp()){
+            case CONSTANT:      break; //do nothing
+            case SYMBOL:        break; //do nothing
+            case NOT:           result.add(((NotExpression) exp).getInnerExpression());
+                                break;
+            case EQUIVALENCE:   result.add(((EquivalenceExpression) exp).getExpression1());
+                                result.add(((EquivalenceExpression) exp).getExpression2());
+                                break;
+            case IMPLICATION:   result.add(((ImplicationExpression) exp).getPremise());
+                                result.add(((ImplicationExpression) exp).getConclusion());
+                                break;
+            case AND:           for(Expression child : ((AndExpression) exp).getExpressions()){
+                                    result.add(child);
+                                }
+                                break;
+            case OR:            for(Expression child : ((OrExpression) exp).getExpressions()){
+                                    result.add(child);
+                                }
+                                break;
+            case XOR:           result.add(((XorExpression) exp).getExpression1());
+                                result.add(((XorExpression) exp).getExpression2());
+                                break;
+        }
+
+        return result;
+    }
+
+    private void eliminateImplications() {
+        List<Expression> queue = new LinkedList<Expression>();
+        queue.add(expression);
+        while(!queue.isEmpty()){
+            Expression exp = queue.remove(0);
+            queue.addAll(traverse(exp));
+        }
+
+    }
+
 }
