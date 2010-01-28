@@ -40,7 +40,9 @@ public class MyInterpreter  implements IInterpreter
         //****************************************
         //Student begin
         this.expression = expression;
+		System.out.println("start\n"+this.expression);
         eliminateImplications();
+		System.out.println("eliminate implications\n"+this.expression);
 
         return new CnfExpression(new ArrayList<Clause>());
 
@@ -141,9 +143,17 @@ public class MyInterpreter  implements IInterpreter
 
             // here is the work
             if(exp.getTyp().equals(Expression.Typ.IMPLICATION)){
-                System.out.println("implication found "+exp);
-                System.out.println("parent is "+findParent(exp));
+				ImplicationExpression var = (ImplicationExpression) exp;
+				// a -> b <==> b v ¬a
+				Expression newChild = new OrExpression(var.getConclusion(), new NotExpression(var.getPremise()));
+				replace(exp, newChild);
+				//return;
+				exp = newChild;
+//				System.out.println("new Expression:\n"+expression);
             }
+			if(exp.getTyp().equals(equals(Expression.Typ.EQUIVALENCE))){
+				
+			}
 
             queue.addAll(traverse(exp));
         }
@@ -168,5 +178,65 @@ public class MyInterpreter  implements IInterpreter
 
         return null;
     }
+
+	private void replace(Expression exp, Expression newChild) {
+//		System.out.println("replace\n"+exp+"\nwith\n"+newChild);
+		Expression parent = findParent(exp);
+		System.out.println("parent\n"+parent);
+		if(parent == null){
+			expression = newChild;
+		} else {
+			Expression child;
+			ArrayList<Expression> children;
+			switch(parent.getTyp()){
+				case NOT:			child = new NotExpression(newChild);
+									replace(parent, child);
+									break;
+				case IMPLICATION:	if(((ImplicationExpression) parent).getPremise().equals(exp)){
+										child = new ImplicationExpression(newChild, ((ImplicationExpression) parent).getConclusion());
+									} else {
+										child = new ImplicationExpression(((ImplicationExpression) parent).getPremise(), newChild);
+									}
+									replace(parent, child);
+									break;
+				case EQUIVALENCE:	if(((EquivalenceExpression) parent).getExpression1().equals(exp)){
+										child = new EquivalenceExpression(newChild, ((EquivalenceExpression) parent).getExpression2());
+									} else {
+										child = new EquivalenceExpression(((EquivalenceExpression) parent).getExpression1(), newChild);
+									}
+									replace(parent, child);
+									break;
+				case XOR:			if(((XorExpression) parent).getExpression1().equals(exp)){
+										child = new XorExpression(newChild, ((XorExpression) parent).getExpression2());
+									} else {
+										child = new XorExpression(((XorExpression) parent).getExpression1(), newChild);
+									}
+									replace(parent, child);
+									break;
+				case AND:			children = new ArrayList<Expression>();
+									for(Expression possibleChild : ((AndExpression) parent).getExpressions()){
+										if(!possibleChild.equals(exp)){
+											children.add(possibleChild);
+										} else {
+											children.add(newChild);
+										}
+									}
+									child = new AndExpression(children);
+									replace(parent, child);
+									break;
+				case OR:			children = new ArrayList<Expression>();
+									for(Expression possibleChild : ((OrExpression) parent).getExpressions()){
+										if(!possibleChild.equals(exp)){
+											children.add(possibleChild);
+										} else {
+											children.add(newChild);
+										}
+									}
+									child = new OrExpression(children);
+									replace(parent, child);
+									break;
+			}
+		}
+	}
 
 }
