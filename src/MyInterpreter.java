@@ -41,7 +41,7 @@ public class MyInterpreter  implements IInterpreter
         //Student begin
         this.expression = expression;
 		System.out.println("start\n"+this.expression);
-        eliminateImplications();
+        eliminateImpEquXor();
 		System.out.println("eliminate implications\n"+this.expression);
 
         return new CnfExpression(new ArrayList<Clause>());
@@ -135,7 +135,7 @@ public class MyInterpreter  implements IInterpreter
         return result;
     }
 
-    private void eliminateImplications() {
+    private void eliminateImpEquXor() {
         List<Expression> queue = new LinkedList<Expression>();
         queue.add(expression);
         while(!queue.isEmpty()){
@@ -144,15 +144,31 @@ public class MyInterpreter  implements IInterpreter
             // here is the work
             if(exp.getTyp().equals(Expression.Typ.IMPLICATION)){
 				ImplicationExpression var = (ImplicationExpression) exp;
-				// a -> b <==> b v ¬a
+				// from a -> b
+				// to	b v ¬a
 				Expression newChild = new OrExpression(var.getConclusion(), new NotExpression(var.getPremise()));
 				replace(exp, newChild);
 				//return;
 				exp = newChild;
 //				System.out.println("new Expression:\n"+expression);
             }
-			if(exp.getTyp().equals(equals(Expression.Typ.EQUIVALENCE))){
-				
+			if(exp.getTyp().equals(Expression.Typ.EQUIVALENCE)){
+				EquivalenceExpression var = (EquivalenceExpression) exp;
+				// from a <==> b
+				// to	(a & b) | (¬a & ¬b)
+				Expression newChild = new OrExpression( new AndExpression(var.getExpression1(), var.getExpression2()),
+					new AndExpression(new NotExpression(var.getExpression1()), new NotExpression(var.getExpression2())));
+				replace(exp, newChild);
+				exp = newChild;
+			}
+			if(exp.getTyp().equals(Expression.Typ.XOR)){
+				XorExpression var = (XorExpression) exp;
+				// from a ^ b
+				// to	(a & ¬b) | (¬a & b)
+				Expression newChild = new OrExpression( new AndExpression(var.getExpression1(), new NotExpression(var.getExpression2())),
+					new AndExpression(new NotExpression(var.getExpression1()), var.getExpression2()));
+				replace(exp, newChild);
+				exp = newChild;
 			}
 
             queue.addAll(traverse(exp));
