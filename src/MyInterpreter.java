@@ -42,7 +42,11 @@ public class MyInterpreter  implements IInterpreter
         this.expression = expression;
 		System.out.println("start\n"+this.expression);
         eliminateImpEquXor();
-		System.out.println("eliminate implications\n"+this.expression);
+		System.out.println("eliminate implications equivalence xor \n"+this.expression);
+		deMorganNot();
+		System.out.println("deMorgan and Not: \n"+this.expression);
+		pullOutAnd();
+		System.out.println("pull out and:\n"+this.expression);
 
         return new CnfExpression(new ArrayList<Clause>());
 
@@ -135,6 +139,117 @@ public class MyInterpreter  implements IInterpreter
         return result;
     }
 
+	private void pullOutAnd() {
+		Boolean flag = true;
+        List<Expression> queue = new LinkedList<Expression>();
+		while(flag){
+			flag = false;
+			queue.add(expression);
+			while(!queue.isEmpty()){
+				Expression exp = queue.remove(0);
+				// from (a & b) | c
+				// to	(a | c) & (b | c)
+				/**
+				 * V = (v1 | ... | vn)
+				 * vi = (w1 & ... & wk)
+				 * => V = W1 & ... Wk)
+				 * Wj = (wj & vt) for all t € {1 ... n}\{i}
+				 */
+				if(exp.getTyp().equals(Expression.Typ.OR)){
+					ArrayList<Expression> V = new ArrayList<Expression>();
+					for(Expression e : ((OrExpression) exp).getExpressions()){
+						V.add(e);
+					}
+					for(int i=0; i<V.size(); i++){
+						if(V.get(i).getTyp().equals(Expression.Typ.AND)){
+							ArrayList<Expression> newV = new ArrayList<Expression>();
+							AndExpression vi = (AndExpression) V.get(i);
+							ArrayList<Expression> vt = new ArrayList<Expression>(V);
+							vt.remove(i);
+							for(Expression wj : vi.getExpressions()){
+								ArrayList<Expression> Wj = new ArrayList<Expression>();
+								Wj.add(wj);
+								Wj.addAll(vt);
+
+								newV.add(new OrExpression(Wj));
+							}
+							Expression newChild = new AndExpression(newV);
+							replace(exp, newChild);
+							exp = newChild;
+							flag = true;
+							i = V.size();
+							queue.clear();
+						}
+					}
+				}
+				if(flag == false){
+					queue.addAll(traverse(exp));
+				}
+			}
+		}
+
+	}
+
+	private void deMorganNot() {
+		Boolean flag = true;
+        List<Expression> queue = new LinkedList<Expression>();
+		while(flag){
+			flag = false;
+			queue.add(expression);
+			while(!queue.isEmpty()){
+				Expression exp = queue.remove(0);
+				if(exp.getTyp().equals(Expression.Typ.NOT)){
+					NotExpression var = (NotExpression) exp;
+					Expression child = var.getInnerExpression();
+					if(child.getTyp().equals(Expression.Typ.NOT)){
+						// from ¬¬a
+						// to	a
+						NotExpression var2 = (NotExpression) child;
+						Expression newChild = var2.getInnerExpression();
+						replace(exp, newChild);
+						exp = newChild;
+						flag = true;
+					}
+					if(child.getTyp().equals(Expression.Typ.CONSTANT)){
+						// from ¬const
+						// to	const
+						ConstExpression var2 = (ConstExpression) child;
+						Expression newChild = new ConstExpression(!var2.getValue());
+						replace(exp, newChild);
+						flag = true;
+					}
+					if(child.getTyp().equals(Expression.Typ.AND)){
+						// from ¬(a & b)
+						// to	(¬a | ¬b)
+						AndExpression var2 =(AndExpression) child;
+						ArrayList<Expression> grandChildren = new ArrayList<Expression>();
+						for(Expression e : var2.getExpressions()){
+							grandChildren.add(new NotExpression(e));
+						}
+						Expression newChild = new OrExpression(grandChildren);
+						replace(exp, newChild);
+						exp = newChild;
+						flag = true;
+					}
+					if(child.getTyp().equals(Expression.Typ.OR)){
+						// from ¬(a | b)
+						// to	(¬a & ¬b)
+						OrExpression var2 =(OrExpression) child;
+						ArrayList<Expression> grandChildren = new ArrayList<Expression>();
+						for(Expression e : var2.getExpressions()){
+							grandChildren.add(new NotExpression(e));
+						}
+						Expression newChild = new AndExpression(grandChildren);
+						replace(exp, newChild);
+						exp = newChild;
+						flag = true;
+					}
+				}
+				queue.addAll(traverse(exp));
+			}
+		}
+	}
+
     private void eliminateImpEquXor() {
         List<Expression> queue = new LinkedList<Expression>();
         queue.add(expression);
@@ -198,7 +313,7 @@ public class MyInterpreter  implements IInterpreter
 	private void replace(Expression exp, Expression newChild) {
 //		System.out.println("replace\n"+exp+"\nwith\n"+newChild);
 		Expression parent = findParent(exp);
-		System.out.println("parent\n"+parent);
+//		System.out.println("parent\n"+parent);
 		if(parent == null){
 			expression = newChild;
 		} else {
