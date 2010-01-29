@@ -48,7 +48,10 @@ public class MyInterpreter  implements IInterpreter
 		pullOutAnd();
 		System.out.println("pull out and:\n"+this.expression);
 
-        return new CnfExpression(new ArrayList<Clause>());
+		ArrayList<Clause> result = makeResult();
+		System.out.println("result:\n"+result);
+
+        return new CnfExpression(result);
 
         //Student end
         //****************************************
@@ -138,6 +141,102 @@ public class MyInterpreter  implements IInterpreter
         }
         return result;
     }
+
+	private ArrayList<Clause> makeResult() {
+		ArrayList<Clause> result = new ArrayList<Clause>();
+        List<Expression> queue = new LinkedList<Expression>();
+		queue.add(expression);
+		while(!queue.isEmpty()){
+			Expression exp = queue.remove(0);
+			if(exp.getTyp().equals(Expression.Typ.AND)){
+				queue.addAll(traverse(exp));
+			} else if(exp.getTyp().equals(Expression.Typ.OR)){
+				ArrayList<Expression> children = new ArrayList<Expression>();
+				List<Expression> childQueue = new LinkedList<Expression>();
+				childQueue.add(exp);
+				while(!childQueue.isEmpty()){
+					Expression child = childQueue.remove(0);
+					if(child.getTyp().equals(Expression.Typ.OR)){
+						childQueue.addAll(traverse(child));
+					} else {
+						children.add(child);
+					}
+				}
+				// collected all children
+				ArrayList<Term> collect = new ArrayList<Term>();
+				Boolean deleteClause = false;
+				Boolean emptyClause = false;
+				for(Expression child : children){
+					if(child.getTyp().equals(Expression.Typ.CONSTANT)){
+						// true -> clause is true (can be deleted)
+						// false -> clause is false (must be empty)
+						if(((ConstExpression) child).getValue()){
+							deleteClause = true;
+							break;
+						} else {
+							emptyClause = true;
+							break;
+						}
+					} else {
+						Boolean negated = false;
+						SymbolExpression  var;
+						if(child.getTyp().equals(Expression.Typ.NOT)){
+							negated = true;
+							var = (SymbolExpression) ((NotExpression) child).getInnerExpression();
+						} else {
+							var = (SymbolExpression) child;
+						}
+						Term term = new Term(var.getName(), negated);
+						// check of already in there
+						if(!collect.contains(term)){
+							// if the negated version is in there -> tautology -> delete the clause
+							if(collect.contains(new Term(term.getName(), !term.isNegated()))){
+								deleteClause = true;
+								break;
+							} else {
+								collect.add(term);
+							}
+						}
+					}
+				}
+				if(!deleteClause){
+					if(emptyClause){
+						result.add(new Clause(new ArrayList<Term>()));
+					} else {
+						result.add(new Clause(collect));
+					}
+				}
+
+
+			} else {
+				// no and and no or -> const or symbol
+				if(exp.getTyp().equals(Expression.Typ.CONSTANT)){
+					// true -> fill in an empty clause
+					// false -> return an empty cnf
+					if(((ConstExpression) exp).getValue()){
+						result.add(new Clause(new ArrayList<Term>()));
+					} else {
+						return new ArrayList<Clause>();
+					}
+				} else {
+					// Symbol or ¬Symbol
+					Boolean negated = false;
+					SymbolExpression var;
+					if(exp.getTyp().equals(Expression.Typ.NOT)){
+						negated = true;
+						var = (SymbolExpression) ((NotExpression) exp).getInnerExpression();
+					} else {
+						var = (SymbolExpression) exp;
+					}
+					Term term = new Term(var.getName(), negated);
+					ArrayList<Term> collect = new ArrayList<Term>();
+					collect.add(term);
+					result.add(new Clause(collect));
+				}
+			}
+		}
+		return result;
+	}
 
 	private void pullOutAnd() {
 		Boolean flag = true;
