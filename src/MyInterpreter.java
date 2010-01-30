@@ -45,6 +45,9 @@ public class MyInterpreter  implements IInterpreter
 		System.out.println("eliminate implications equivalence xor \n"+this.expression);
 		deMorganNot();
 		System.out.println("deMorgan and Not: \n"+this.expression);
+		pack();
+		System.out.println("pack:\n"+this.expression);
+
 		pullOutAnd();
 		System.out.println("pull out and:\n"+this.expression);
 
@@ -53,6 +56,7 @@ public class MyInterpreter  implements IInterpreter
 
         return new CnfExpression(result);
 
+//		return new CnfExpression(new ArrayList<Clause>());
         //Student end
         //****************************************
     }
@@ -242,6 +246,7 @@ public class MyInterpreter  implements IInterpreter
 		Boolean flag = true;
         List<Expression> queue = new LinkedList<Expression>();
 		while(flag){
+			pack();
 			flag = false;
 			queue.add(expression);
 			while(!queue.isEmpty()){
@@ -252,19 +257,19 @@ public class MyInterpreter  implements IInterpreter
 				 * V = (v1 | ... | vn)
 				 * vi = (w1 & ... & wk)
 				 * => V = W1 & ... Wk)
-				 * Wj = (wj & vt) for all t € {1 ... n}\{i}
+				 * Wj = (wj | vt) for all t € {1 ... n}\{i}, j € {1 ... k}
 				 */
 				if(exp.getTyp().equals(Expression.Typ.OR)){
 					ArrayList<Expression> V = new ArrayList<Expression>();
 					for(Expression e : ((OrExpression) exp).getExpressions()){
 						V.add(e);
 					}
-					for(int i=0; i<V.size(); i++){
-						if(V.get(i).getTyp().equals(Expression.Typ.AND)){
+					for(Expression v : V){
+						if(v.getTyp().equals(Expression.Typ.AND)){
 							ArrayList<Expression> newV = new ArrayList<Expression>();
-							AndExpression vi = (AndExpression) V.get(i);
+							AndExpression vi = (AndExpression) v;
 							ArrayList<Expression> vt = new ArrayList<Expression>(V);
-							vt.remove(i);
+							vt.remove(v);
 							for(Expression wj : vi.getExpressions()){
 								ArrayList<Expression> Wj = new ArrayList<Expression>();
 								Wj.add(wj);
@@ -276,13 +281,67 @@ public class MyInterpreter  implements IInterpreter
 							replace(exp, newChild);
 							exp = newChild;
 							flag = true;
-							i = V.size();
 							queue.clear();
+							break;
 						}
 					}
 				}
 				if(flag == false){
 					queue.addAll(traverse(exp));
+				}
+			}
+		}
+
+	}
+
+	private void pack(){
+		Boolean flag = true;
+        List<Expression> queue = new LinkedList<Expression>();
+		while(flag){
+			flag = false;
+			queue.add(expression);
+			while(!queue.isEmpty()){
+				Expression exp = queue.remove(0);
+				switch(exp.getTyp()){
+					case AND:
+						ArrayList<Expression> V = new ArrayList<Expression>();
+						for(Expression child : ((AndExpression) exp).getExpressions()){
+								V.add(child);
+						}
+						for(Expression child : ((AndExpression) exp).getExpressions()){
+							if(child.getTyp().equals(Expression.Typ.AND)){
+								V.remove(child);
+								for(Expression c : ((AndExpression) child).getExpressions()){
+										V.add(c);
+								}
+								Expression newChild = new AndExpression(V);
+								replace(exp, newChild);
+								flag = true;
+							}
+						}
+						break;
+					case OR:
+						ArrayList<Expression> W = new ArrayList<Expression>();
+						for(Expression child : ((OrExpression) exp).getExpressions()){
+							W.add(child);
+						}
+						for(Expression child : ((OrExpression) exp).getExpressions()){
+							if(child.getTyp().equals(Expression.Typ.OR)){
+								W.remove(child);
+								for(Expression c : ((OrExpression) child).getExpressions()){
+									W.add(c);
+								}
+								Expression newChild = new OrExpression(W);
+								replace(exp, newChild);
+								flag = true;
+							}
+						}
+						break;
+				}
+				if(flag == false){
+					queue.addAll(traverse(exp));
+				} else {
+					queue.clear();
 				}
 			}
 		}
@@ -296,55 +355,60 @@ public class MyInterpreter  implements IInterpreter
 			flag = false;
 			queue.add(expression);
 			while(!queue.isEmpty()){
-				Expression exp = queue.remove(0);
+				Expression exp = queue.remove(queue.size() - 1);
 				if(exp.getTyp().equals(Expression.Typ.NOT)){
-					NotExpression var = (NotExpression) exp;
-					Expression child = var.getInnerExpression();
+					Expression child = ((NotExpression) exp).getInnerExpression();
 					if(child.getTyp().equals(Expression.Typ.NOT)){
 						// from ¬¬a
 						// to	a
-						NotExpression var2 = (NotExpression) child;
-						Expression newChild = var2.getInnerExpression();
+						NotExpression var = (NotExpression) child;
+						Expression newChild = var.getInnerExpression();
 						replace(exp, newChild);
 						exp = newChild;
 						flag = true;
-					}
-					if(child.getTyp().equals(Expression.Typ.CONSTANT)){
+						queue.clear();break;
+					} else
+						if(child.getTyp().equals(Expression.Typ.CONSTANT)){
 						// from ¬const
-						// to	const
-						ConstExpression var2 = (ConstExpression) child;
-						Expression newChild = new ConstExpression(!var2.getValue());
+						// to	!const
+						ConstExpression var = (ConstExpression) child;
+						Expression newChild = new ConstExpression(!var.getValue());
 						replace(exp, newChild);
+						exp = newChild;
 						flag = true;
-					}
-					if(child.getTyp().equals(Expression.Typ.AND)){
+						queue.clear();break;
+					} else
+						if(child.getTyp().equals(Expression.Typ.AND)){
 						// from ¬(a & b)
 						// to	(¬a | ¬b)
-						AndExpression var2 =(AndExpression) child;
+						AndExpression var =(AndExpression) child;
 						ArrayList<Expression> grandChildren = new ArrayList<Expression>();
-						for(Expression e : var2.getExpressions()){
+						for(Expression e : var.getExpressions()){
 							grandChildren.add(new NotExpression(e));
 						}
 						Expression newChild = new OrExpression(grandChildren);
 						replace(exp, newChild);
 						exp = newChild;
 						flag = true;
-					}
-					if(child.getTyp().equals(Expression.Typ.OR)){
+						queue.clear();break;
+					} else if(child.getTyp().equals(Expression.Typ.OR)){
 						// from ¬(a | b)
 						// to	(¬a & ¬b)
-						OrExpression var2 =(OrExpression) child;
+						OrExpression var =(OrExpression) child;
 						ArrayList<Expression> grandChildren = new ArrayList<Expression>();
-						for(Expression e : var2.getExpressions()){
+						for(Expression e : var.getExpressions()){
 							grandChildren.add(new NotExpression(e));
 						}
 						Expression newChild = new AndExpression(grandChildren);
 						replace(exp, newChild);
 						exp = newChild;
 						flag = true;
+						queue.clear();break;
 					}
 				}
-				queue.addAll(traverse(exp));
+				if(flag == false){
+					queue.addAll(traverse(exp));
+				}
 			}
 		}
 	}
