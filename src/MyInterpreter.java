@@ -47,14 +47,18 @@ public class MyInterpreter  implements IInterpreter
 		System.out.println("deMorgan and Not: \n"+this.expression);
 		onlyBinaryFunctions();
 		System.out.println("only binary:\n"+this.expression);
+		surround();
+		System.out.println("surround:\n"+this.expression);
+
 		transform();
-		System.out.println("toCNF:"+this.expression);
+		System.out.println("toCNF:\n"+this.expression);
 
 
-		ArrayList<Clause> result = makeResult();
-		System.out.println("result:\n"+result);
+		ArrayList<Clause> cnf = makeResult();
+		System.out.println("result:\n"+cnf);
 
-        return new CnfExpression(result);
+
+        return new CnfExpression(cnf);
 
 //		return new CnfExpression(new ArrayList<Clause>());
         //Student end
@@ -81,12 +85,110 @@ public class MyInterpreter  implements IInterpreter
 
         //****************************************
         //Student begin
+		List<String> symbols = collectVariables(exprCnf);
 
-        return null;
+		HashMap<String, Boolean> result = DPLL(exprCnf, symbols, new HashMap<String, Boolean>());
+
+
+
+        return result;
 
         //Student end
         //****************************************
     }
+
+	private HashMap<String, Boolean> DPLL(CnfExpression cnf, List<String> symbols, HashMap<String, Boolean> hashMap) {
+		if(cnf.getClauses().isEmpty()){
+			// empty Conjunction
+			// so every mapping make it true
+			return new HashMap<String, Boolean>();
+		}
+
+		for(Clause clause : cnf.getClauses()){
+			if(clause.getTerms().isEmpty()){
+				// an empty clause
+				// no way there is a mapping to make it true
+				return null;
+			}
+		}
+
+
+		Boolean allLiteralsMapped = true;
+
+		for(Clause clause : cnf.getClauses()){
+			Boolean satisfyClause = null;
+			for(Term literal : clause.getTerms()){
+
+				Boolean map = hashMap.get(literal.getName());
+				if(map != null){
+					if(!literal.isNegated() == map){
+						satisfyClause = true;
+					} else {
+						satisfyClause = false;
+					}
+				}
+
+				if(map == null){
+					allLiteralsMapped = false;
+				}
+			}
+
+			if(satisfyClause != null && satisfyClause == false){
+				// the mapping cant satisfy the cnf
+				return null;
+			}
+		}
+
+		if(allLiteralsMapped){
+			// everything mapped and no clause is false
+			return hashMap;
+		}
+
+		Term term = findPureLiteral(symbols, cnf, hashMap);
+
+		if(term != null){
+			List<String> symbols2 = new LinkedList<String>(symbols);
+			symbols2.remove(term.getName());
+
+			HashMap<String, Boolean> hashMap2 = new HashMap<String, Boolean>(hashMap);
+			hashMap2.put(term.getName(), !term.isNegated());
+
+			return DPLL(cnf, symbols2, hashMap2);
+		}
+
+		term = unitClause(cnf, hashMap);
+
+		if(term != null){
+			List<String> symbols2 = new LinkedList<String>(symbols);
+			symbols2.remove(term.getName());
+
+			HashMap<String, Boolean> hashMap2 = new HashMap<String, Boolean>(hashMap);
+			hashMap2.put(term.getName(), !term.isNegated());
+
+			return DPLL(cnf, symbols2, hashMap2);
+		}
+
+		// nothing found -> branch
+		String symbol = findUnused(symbols, hashMap);
+
+		List<String> symbols2 = new LinkedList<String>(symbols);
+		symbols2.remove(symbol);
+
+		HashMap<String, Boolean> hashMap2 = new HashMap<String, Boolean>(hashMap);
+		hashMap2.put(symbol, true);
+
+		HashMap<String, Boolean> result = DPLL(cnf, symbols2, hashMap2);
+
+		if(result != null){
+			return result;
+		} else {
+			HashMap<String, Boolean> hashMap3 = new HashMap<String, Boolean>(hashMap);
+			hashMap3.put(symbol, false);
+
+			return DPLL(cnf, symbols2, hashMap3);
+		}
+		
+	}
 
     //Falls bereits getSolution aufgerufen wurde, weitere Lösungen suchen,
     //falls keine mehr gefunden wird, null zurückgeben
@@ -118,7 +220,8 @@ public class MyInterpreter  implements IInterpreter
         //****************************************
     }
 
-    List<Expression> traverse(Expression exp){
+
+	List<Expression> traverse(Expression exp){
         List<Expression> result = new LinkedList<Expression>();
         switch(exp.getTyp()){
             case CONSTANT:      break; //do nothing
@@ -146,7 +249,73 @@ public class MyInterpreter  implements IInterpreter
         return result;
     }
 
-	private void transform() {
+	private List<String> collectVariables(CnfExpression cnf) {
+		List<String> collect = new LinkedList<String>();
+		for(Clause clause : cnf.getClauses()){
+			for(Term literal : clause.getTerms()){
+				String var = literal.getName();
+				if(!collect.contains(var)){
+					collect.add(var);
+				}
+			}
+		}
+
+		return collect;
+	}
+
+	private Term findPureLiteral(List<String> symbols, CnfExpression cnf, HashMap<String, Boolean> hashMap) {
+		for(String symbol : symbols){
+			Boolean mapping = null;
+			Boolean result = false;
+			for(Clause clause : cnf.getClauses()){
+				for(Term literal : clause.getTerms()){
+					if(literal.getName().equals(symbol)){
+						if(mapping == null){
+							mapping = literal.isNegated();
+							result = true;
+						} else {
+							if(mapping != literal.isNegated()){
+								result = false;
+								break;
+							}
+						}
+					}
+				}
+			}
+			if(result == true){
+				return new Term(symbol, mapping);
+			}
+		}
+		return null;
+	}
+
+	private String findUnused(List<String> symbols, HashMap<String, Boolean> hashMap) {
+		for(String symbol : symbols){
+			if(hashMap.containsKey(symbol)){
+				return symbol;
+			}
+		}
+		return null;
+	}
+
+	private CnfExpression reduceCNF(CnfExpression cnf, Term kill) {
+		ArrayList<Clause> clauses = new ArrayList<Clause>();
+
+		for(Clause c : cnf.getClauses()){
+			ArrayList<Term> terms = new ArrayList<Term>();
+			for(Term t : c.getTerms()){
+				if(!c.equals(kill)){
+					terms.add(t);
+				}
+			}
+			clauses.add(new Clause(terms));
+		}
+
+
+		return new CnfExpression(clauses);
+	}
+
+	private void surround() {
 		ArrayList<Expression> trans = new ArrayList<Expression>();
 		trans.add(expression);
 		expression = new OrExpression(trans);
@@ -156,6 +325,10 @@ public class MyInterpreter  implements IInterpreter
 		expression = new AndExpression(trans);
 //		System.out.println("and \n"+this.expression);
 		// <[ formula ]>
+	}
+
+	private void transform() {
+
 
 		Boolean flag = true;
 		while(flag){
@@ -172,14 +345,29 @@ public class MyInterpreter  implements IInterpreter
 						flag = true;
 						if(exp.getTyp().equals(Expression.Typ.OR)){
 
-							ArrayList<Expression> c = new ArrayList<Expression>();
+							// from <[ (a | b), d], C>
+							// to	<[ a, b, d], C>
+							Iterator<Expression> iter = ((OrExpression) exp).getExpressions().iterator();
+							Expression a = iter.next();
+							Expression b = iter.next();
+
+							ArrayList<Expression> C = new ArrayList<Expression>();
 							for(Expression e : big.getExpressions()){
 								if(!e.equals(clause))
-									c.add(e);
+									C.add(e);
 							}
-							c.add(exp);
+							ArrayList<Expression> d = new ArrayList<Expression>();
+							for(Expression f : little.getExpressions()){
+								if(!f.equals(exp))
+									d.add(f);
+							}
 
-							expression = new AndExpression(c);
+							d.add(a);
+							d.add(b);
+
+							C.add(new OrExpression(d));
+
+							expression = new AndExpression(C);
 						} else {
 							// <[(a & b), d], C]>
 							// <[a, d], [b, d], C]>
@@ -556,6 +744,27 @@ public class MyInterpreter  implements IInterpreter
 									break;
 			}
 		}
+	}
+
+	private Term unitClause(CnfExpression cnf, HashMap<String, Boolean> hashMap) {
+		for(Clause clause : cnf.getClauses()){
+			int counter = 0;
+			Term term = null;
+			for(Term literal : clause.getTerms()){
+				Boolean map = hashMap.get(literal.getName());
+				if(map == null){
+					counter++;
+					term = new Term(literal.getName(), !literal.isNegated());
+				}
+			}
+			if(counter == 1){
+				return term;
+			}
+		}
+
+
+
+		return null;
 	}
 
 }
