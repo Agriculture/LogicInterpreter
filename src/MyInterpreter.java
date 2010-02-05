@@ -45,8 +45,8 @@ public class MyInterpreter  implements IInterpreter
 		System.out.println("eliminate implications equivalence xor \n"+this.expression);
 		deMorganNot();
 		System.out.println("deMorgan and Not: \n"+this.expression);
-		onlyBinaryFunctions();
-		System.out.println("only binary:\n"+this.expression);
+//		onlyBinaryFunctions();
+//		System.out.println("only binary:\n"+this.expression);
 		surround();
 		System.out.println("surround:\n"+this.expression);
 
@@ -348,8 +348,10 @@ public class MyInterpreter  implements IInterpreter
 							// from <[ (a | b), d], C>
 							// to	<[ a, b, d], C>
 							Iterator<Expression> iter = ((OrExpression) exp).getExpressions().iterator();
-							Expression a = iter.next();
-							Expression b = iter.next();
+							List<Expression> ab = new ArrayList<Expression>();
+							while(iter.hasNext()){
+								ab.add(iter.next());
+							}
 
 							ArrayList<Expression> C = new ArrayList<Expression>();
 							for(Expression e : big.getExpressions()){
@@ -362,8 +364,7 @@ public class MyInterpreter  implements IInterpreter
 									d.add(f);
 							}
 
-							d.add(a);
-							d.add(b);
+							d.addAll(ab);
 
 							C.add(new OrExpression(d));
 
@@ -372,8 +373,10 @@ public class MyInterpreter  implements IInterpreter
 							// <[(a & b), d], C]>
 							// <[a, d], [b, d], C]>
 							Iterator<Expression> iter = ((AndExpression) exp).getExpressions().iterator();
-							Expression a = iter.next();
-							Expression b = iter.next();
+							List<Expression> ab = new ArrayList<Expression>();
+							while(iter.hasNext()){
+								ab.add(iter.next());
+							}
 
 							ArrayList<Expression> d = new ArrayList<Expression>();
 							ArrayList<Expression> C = new ArrayList<Expression>();
@@ -385,20 +388,17 @@ public class MyInterpreter  implements IInterpreter
 								if(!f.equals(exp))
 									d.add(f);
 							}
-							ArrayList<Expression> l = new ArrayList<Expression>(d);
-							l.add(a);
-							ArrayList<Expression> m = new ArrayList<Expression>(d);
-							m.add(b);
+							for(Expression a : ab){
+								ArrayList<Expression> l = new ArrayList<Expression>(d);
+								l.add(a);
+								C.add(new OrExpression(l));
+							}
 
-							C.add(new OrExpression(l));
-							C.add(new OrExpression(m));
 							expression = new AndExpression(C);
 						}
 					}
 				}
 			}
-
-
 		}
 	}
 
